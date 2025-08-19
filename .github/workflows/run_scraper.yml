@@ -1,23 +1,30 @@
-name: Run JBZD Scraper
+name: JBZD Image Scraper
 
+# Ręczne wyzwalanie
 on:
   workflow_dispatch:
     inputs:
       start:
-        description: 'Początkowa strona'
+        description: "Numer startowy strony"
         required: true
         default: 1
       end:
-        description: 'Końcowa strona'
+        description: "Numer końcowy strony"
         required: true
-        default: 100
+        default: 5
 
 jobs:
-  scraper:
+  scrape:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
 
+    steps:
+      # Checkout repozytorium z tokenem GITHUB_TOKEN
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Instalacja Pythona i zależności
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -28,8 +35,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
 
+      # Uruchomienie scraper.py
       - name: Run scraper
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python scraper.py ${{ github.event.inputs.start }} ${{ github.event.inputs.end }}
