@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       start:
-        description: '1'
+        description: 'Numer startowy strony'
         required: true
         default: 1
       end:
-        description: '500000'
+        description: 'Numer końcowy strony'
         required: true
         default: 100
 
@@ -31,5 +31,7 @@ jobs:
           pip install requests beautifulsoup4
 
       - name: Run scraper
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python scraper.py ${{ github.event.inputs.start }} ${{ github.event.inputs.end }}
