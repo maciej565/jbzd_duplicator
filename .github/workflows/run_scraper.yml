@@ -1,29 +1,27 @@
-name: Uruchom scraper JBZD
+name: Run JBZD Scraper
 
 on:
   workflow_dispatch:
     inputs:
       start:
-        description: 'Numer startowy strony'
+        description: 'Początkowa strona'
         required: true
         default: 1
       end:
-        description: 'Numer końcowy strony'
+        description: 'Końcowa strona'
         required: true
         default: 100
 
 jobs:
-  run_scraper:
+  scraper:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
