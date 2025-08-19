@@ -4,7 +4,7 @@ import os
 import time
 import json
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import subprocess
 import threading
@@ -41,7 +41,7 @@ def print_progress_bar(completed, total, bar_length=30):
         est_sec = int(est_remaining % 60)
     else:
         est_min = est_sec = 0
-    print(f"[{bar}] {completed}/{total} | szac. czas: {est_min}m {est_sec}s")
+    print(f"[{bar}] {completed}/{total} | szac. czas: {est_min}m {est_sec}s", end="\r")
 
 def fetch_page(i):
     global duplicates
@@ -77,7 +77,6 @@ with ThreadPoolExecutor(max_workers=THREADS) as executor:
     futures = [executor.submit(fetch_page, i) for i in range(START, END + 1)]
 
     total = END - START + 1
-    # główny wątek drukuje pasek co sekundę
     while progress["completed"] < total:
         with progress_lock:
             print_progress_bar(progress["completed"], total)
@@ -100,13 +99,18 @@ try:
     repo_dir = os.getcwd()
     subprocess.run(["git", "config", "user.name", "github-actions"], check=True)
     subprocess.run(["git", "config", "user.email", "actions@github.com"], check=True)
+
     subprocess.run(["git", "add", OUTPUT_DIR], check=True, cwd=repo_dir)
 
     commit_msg = f"Pobrano obrazki {timestamp} ({START}-{END})"
     subprocess.run(["git", "commit", "-m", commit_msg], check=True, cwd=repo_dir)
 
     remote_url = f"https://x-access-token:{os.environ['GITHUB_TOKEN']}@github.com/{os.environ['GITHUB_REPOSITORY']}.git"
+
+    # Pull/rebase przed push, aby uniknąć konfliktów
+    subprocess.run(["git", "pull", "--rebase", remote_url, "main"], check=True, cwd=repo_dir)
     subprocess.run(["git", "push", remote_url, "HEAD:main"], check=True, cwd=repo_dir)
+
     print(f"✅ Zapisano wyniki w repozytorium: {commit_msg}")
 
 except subprocess.CalledProcessError as e:
