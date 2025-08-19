@@ -105,11 +105,9 @@ try:
     commit_msg = f"Pobrano obrazki {timestamp} ({START}-{END})"
     subprocess.run(["git", "commit", "-m", commit_msg], check=True, cwd=repo_dir)
 
-    remote_url = f"https://x-access-token:{os.environ['GITHUB_TOKEN']}@github.com/{os.environ['GITHUB_REPOSITORY']}.git"
-
     # Pull/rebase przed push, aby uniknąć konfliktów
-    subprocess.run(["git", "pull", "--rebase", remote_url, "main"], check=True, cwd=repo_dir)
-    subprocess.run(["git", "push", remote_url, "HEAD:main"], check=True, cwd=repo_dir)
+    subprocess.run(["git", "pull", "--rebase", "origin", "main"], check=True, cwd=repo_dir)
+    subprocess.run(["git", "push", "origin", "main"], check=True, cwd=repo_dir)
 
     print(f"✅ Zapisano wyniki w repozytorium: {commit_msg}")
 
