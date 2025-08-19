@@ -7,6 +7,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 import subprocess
+import threading
 
 # ---- Parametry ----
 BASE_URL = "https://jbzd.com.pl/oczekujace/"
@@ -25,6 +26,7 @@ headers = {"User-Agent": "Mozilla/5.0 (compatible; Bot/1.0)"}
 duplicates = {}
 progress = {"completed": 0}
 start_time = time.time()
+progress_lock = threading.Lock()
 
 # ---- Funkcje ----
 def print_progress_bar(completed, total, bar_length=30):
@@ -39,7 +41,7 @@ def print_progress_bar(completed, total, bar_length=30):
         est_sec = int(est_remaining % 60)
     else:
         est_min = est_sec = 0
-    print(f"\r[{bar}] {completed}/{total} | szac. czas: {est_min}m {est_sec}s", end="")
+    print(f"[{bar}] {completed}/{total} | szac. czas: {est_min}m {est_sec}s")
 
 def fetch_page(i):
     global duplicates
@@ -57,7 +59,8 @@ def fetch_page(i):
         img_path = os.path.join(OUTPUT_DIR, img_name)
 
         if os.path.exists(img_path):
-            duplicates[img_name] = duplicates.get(img_name, 0) + 1
+            with progress_lock:
+                duplicates[img_name] = duplicates.get(img_name, 0) + 1
         else:
             img_data = requests.get(img_url, headers=headers, timeout=10)
             with open(img_path, "wb") as f:
@@ -66,17 +69,23 @@ def fetch_page(i):
     except Exception as e:
         print(f"[ERR] {url}: {e}")
     finally:
-        progress["completed"] += 1
-        print_progress_bar(progress["completed"], END - START + 1)
+        with progress_lock:
+            progress["completed"] += 1
 
 # ---- Pobieranie wielowątkowe ----
 with ThreadPoolExecutor(max_workers=THREADS) as executor:
     futures = [executor.submit(fetch_page, i) for i in range(START, END + 1)]
-    for _ in as_completed(futures):
-        pass
 
-# zakończenie paska postępu
-print()
+    total = END - START + 1
+    # główny wątek drukuje pasek co sekundę
+    while progress["completed"] < total:
+        with progress_lock:
+            print_progress_bar(progress["completed"], total)
+        time.sleep(1)
+
+    # końcowy update
+    print_progress_bar(progress["completed"], total)
+    print()
 
 # ---- Zapis duplikatów ----
 if duplicates:
@@ -86,14 +95,19 @@ if duplicates:
 else:
     print("✅ Brak duplikatów")
 
-# ---- Commit i push do repo ----
+# ---- Commit i push do repo (GitHub Actions) ----
 try:
-    subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
-    subprocess.run(["git", "config", "--global", "user.email", "actions@github.com"], check=True)
-    subprocess.run(["git", "add", OUTPUT_DIR], check=True)
+    repo_dir = os.getcwd()
+    subprocess.run(["git", "config", "user.name", "github-actions"], check=True)
+    subprocess.run(["git", "config", "user.email", "actions@github.com"], check=True)
+    subprocess.run(["git", "add", OUTPUT_DIR], check=True, cwd=repo_dir)
+
     commit_msg = f"Pobrano obrazki {timestamp} ({START}-{END})"
-    subprocess.run(["git", "commit", "-m", commit_msg], check=True)
-    subprocess.run(["git", "push"], check=True)
+    subprocess.run(["git", "commit", "-m", commit_msg], check=True, cwd=repo_dir)
+
+    remote_url = f"https://x-access-token:{os.environ['GITHUB_TOKEN']}@github.com/{os.environ['GITHUB_REPOSITORY']}.git"
+    subprocess.run(["git", "push", remote_url, "HEAD:main"], check=True, cwd=repo_dir)
     print(f"✅ Zapisano wyniki w repozytorium: {commit_msg}")
+
 except subprocess.CalledProcessError as e:
     print(f"[ERR] Git: {e}")
